@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>六轴机械臂控制 WebUI</title>
+  <style>
+    :root{
+      --bg:#0f1221;          /* 深色背景 */
+      --panel:#171a2b;       /* 卡片背景 */
+      --muted:#8a93b2;       /* 次要文字 */
+      --text:#e7ebff;        /* 正文文字 */
+      --brand:#7aa2ff;       /* 主题主色 */
+      --accent:#22d3ee;      /* 点缀色 */
+      --danger:#ff6b6b;      /* 危险 */
+      --ok:#34d399;          /* 成功 */
+      --warn:#fbbf24;        /* 警告 */
+      --surface:#101326;     /* 更深面 */
+      --shadow:0 10px 30px rgba(0,0,0,.35);
+      --radius:18px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      color:var(--text); background:radial-gradient(1200px 600px at 10% -10%, #1a1f3b 0%, transparent 60%),
+                        radial-gradient(1000px 500px at 90% -20%, #112a42 0%, transparent 60%),
+                        var(--bg);
+    }
+    .container{max-width:1200px; margin:24px auto; padding:0 16px}
+    header{
+      display:flex; align-items:center; gap:16px; padding:16px; background:var(--panel);
+      border-radius:var(--radius); box-shadow:var(--shadow); position:sticky; top:12px; z-index:10;
+    }
+    .brand{display:flex; align-items:center; gap:12px}
+    .logo{width:36px; height:36px; border-radius:10px; background:linear-gradient(135deg,var(--brand),var(--accent)); box-shadow:0 4px 16px rgba(122,162,255,.35)}
+    h1{font-size:18px; margin:0}
+    .spacer{flex:1}
+    .row{display:flex; gap:16px; flex-wrap:wrap; margin-top:16px}
+    .col{flex: 1 1 360px; min-width: 0;}
+
+    .card{
+      background:var(--panel);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:16px;
+      overflow: hidden; /* 裁掉像 range 这类控件的外溢绘制 */
+    }
+    .card h2{margin:0 0 12px; font-size:16px}
+
+    .status-bar{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+    .status-dot{width:10px; height:10px; border-radius:50%; background:var(--warn); box-shadow:0 0 0 3px rgba(255,255,255,.04) inset}
+    .status-dot.ok{background:var(--ok)}
+    .status-dot.bad{background:var(--danger)}
+    .muted{color:var(--muted)}
+
+    .input, select{
+      background:var(--surface); border:1px solid #242742; color:var(--text); padding:10px 12px; border-radius:12px; outline:none;
+    }
+    .input:focus, select:focus{border-color:var(--brand)}
+
+    .btn{cursor:pointer; user-select:none; border:none; border-radius:12px; padding:10px 14px; color:#0b1022; background:#e7ebff; font-weight:600; box-shadow:0 4px 12px rgba(0,0,0,.25)}
+    .btn:hover{filter:brightness(1.05)}
+    .btn:active{transform:translateY(1px)}
+    .btn.primary{background:linear-gradient(135deg, var(--brand), #5f87ff); color:white}
+    .btn.ghost{background:transparent; color:var(--text); border:1px solid #2c3157}
+    .btn.danger{background:linear-gradient(135deg, #ff6969, #e64444); color:white}
+    .btn.ok{background:linear-gradient(135deg, #34d399, #12b981); color:white}
+    .btn.warn{background:linear-gradient(135deg, #fbbf24, #f59e0b); color:#0b1022}
+    .btn.small{padding:6px 10px; border-radius:10px}
+    .btn.block{display:block; width:100%}
+
+    .grid-joints{display:grid; gap:14px; grid-template-columns:repeat(2, minmax(0,1fr))}
+    .joint{background:linear-gradient(180deg, #161a2b, #12162a); border:1px solid #2a2f54; border-radius:16px; padding:12px}
+    .joint-top{display:flex; align-items:center; justify-content:space-between; gap:8px}
+    .joint-name{font-weight:700}
+    .joint-values{font-variant-numeric:tabular-nums; color:var(--muted)}
+    .range-wrap{display:grid; grid-template-columns:36px 1fr 36px; gap:8px; align-items:center; margin-top:8px}
+
+    input[type=range]{-webkit-appearance:none; appearance:none; height:6px; border-radius:6px; background:linear-gradient(90deg, var(--brand), var(--accent)); outline:none}
+    input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none; width:18px; height:18px; border-radius:50%; background:white; border:2px solid #5f87ff; box-shadow:0 2px 8px rgba(0,0,0,.35)}
+    input[type=range]::-moz-range-thumb{ width:18px; height:18px; border:none; border-radius:50%; background:white}
+
+    .controls{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    .section-actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px}
+
+    .two-col{display:grid; gap:12px; grid-template-columns: 1fr 1fr}
+    .list{max-height:280px; overflow:auto; border:1px dashed #2a2f54; border-radius:12px; padding:8px}
+    .list .item{display:grid; grid-template-columns: 1fr auto; gap:8px; align-items:center; padding:6px 8px; border-radius:10px}
+    .list .item:hover{background:#141835}
+
+    .console{height:260px; overflow:auto; background:#0c1024; border:1px solid #2a2f54; border-radius:12px; padding:10px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px}
+    .kbd{display:inline-block; padding:.2em .45em; border:1px solid #2a2f54; border-bottom-width:2px; border-radius:6px; background:#0c1024; font-family: ui-monospace, monospace; font-size:12px}
+    .hint{color:var(--muted); font-size:12px}
+    .divider{height:1px; background:#23274a; margin:12px 0}
+
+    @media (max-width:900px){
+      .grid-joints{grid-template-columns:1fr}
+    }
+    @media (max-width:1200px){
+      .row {
+        flex-direction: column;
+      }
+    }
+    /* 让滑条最多占满容器，不产生外溢 */
+    .range-wrap input[type=range]{ 
+    width:100%; 
+    max-width:100%; 
+  }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div>
+          <h1>六轴机械臂控制面板 <span class="muted">WebUI</span></h1>
+          <div class="hint">键盘快捷键：<span class="kbd">1‑6</span> 选择关节，<span class="kbd">←/→</span> 微调，<span class="kbd">Space</span> 急停，<span class="kbd">H</span> 回零</div>
+        </div>
+      </div>
+      <div class="spacer"></div>
+      <div class="status-bar">
+        <div id="connDot" class="status-dot" title="连接状态"></div>
+        <span id="connLabel" class="muted">未连接</span>
+        <select id="protoSelect" title="控制模式">
+          <option value="absolute" selected>位置模式（绝对角度）</option>
+          <option value="jog">点动模式（增量/速度）</option>
+        </select>
+        <input id="wsUrl" class="input" style="width:280px" placeholder="ws://localhost:8765" />
+        <button id="btnConnect" class="btn primary">连接</button>
+      </div>
+    </header>
+
+    <div class="row">
+      <!-- 左：关节控制 -->
+      <div class="col">
+        <div class="card">
+          <h2>关节控制 <span class="muted">J1–J6</span></h2>
+          <div class="controls" style="margin-bottom:8px">
+            <label>速度比例</label>
+            <input id="speedScale" type="range" min="1" max="100" value="50" step="1" style="flex:1" />
+            <span id="speedLabel" class="muted" style="width:48px; text-align:right">50%</span>
+            <button id="btnServo" class="btn ok">伺服 ON</button>
+            <button id="btnEStop" class="btn danger">急停</button>
+          </div>
+
+          <div id="joints" class="grid-joints"></div>
+
+          <div class="section-actions">
+            <button id="btnHome"  class="btn warn">回零 / Home</button>
+            <button id="btnZero"  class="btn ghost">零位校准</button>
+            <button id="btnApplyPose" class="btn primary">应用当前姿态</button>
+          </div>
+          <div class="hint">提示：按住 <span class="kbd">Shift</span> = ×5 步长；按住 <span class="kbd">Alt</span> = ×0.1 步长</div>
+        </div>
+      </div>
+
+      <!-- 中：示教与序列 -->
+      <div class="col">
+        <div class="card">
+          <h2>夹爪 / I/O</h2>
+          <div class="controls">
+            <label style="min-width:3em">夹爪</label>
+            <input id="gripper" type="range" min="0" max="100" value="0" step="1" style="flex:1" />
+            <span id="gripLabel" style="width:40px; text-align:right" class="muted">0%</span>
+            <button id="btnGripOpen" class="btn small">打开</button>
+            <button id="btnGripClose" class="btn small">闭合</button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <h2>示教点</h2>
+          <div class="two-col">
+            <div>
+              <div class="controls" style="margin-bottom:8px">
+                <input id="wpName" class="input" placeholder="示教点名称，例如 Pick1" style="flex:1" />
+                <button id="btnSaveWp" class="btn">保存当前</button>
+              </div>
+              <div id="wpList" class="list" aria-label="示教点列表"></div>
+            </div>
+            <div>
+              <div class="controls" style="margin-bottom:8px">
+                <select id="wpSelect" style="flex:1" class="input"></select>
+                <input id="dwell" class="input" type="number" min="0" step="0.1" value="0.5" style="width:100px" />
+                <span class="muted">秒停留</span>
+                <button id="btnAddStep" class="btn">添加到序列</button>
+              </div>
+              <div id="seqList" class="list"></div>
+              <div class="section-actions">
+                <button id="btnRunSeq" class="btn primary">运行序列</button>
+                <button id="btnStopSeq" class="btn danger">停止</button>
+                <button id="btnExport" class="btn ghost">导出 JSON</button>
+                <button id="btnImport" class="btn ghost">导入 JSON</button>
+                <input id="importFile" type="file" accept="application/json" hidden />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右：状态与日志 -->
+      <div class="col">
+        <div class="card">
+          <h2>状态</h2>
+          <div>运动状态： <span id="motionState" class="muted">未知</span></div>
+          <div>当前姿态（°）： <span id="poseText" class="muted">—</span></div>
+          <div class="divider"></div>
+          <h2>消息日志</h2>
+          <div id="console" class="console" role="log" aria-live="polite"></div>
+          <div class="section-actions">
+            <button id="btnClearLog" class="btn ghost">清空日志</button>
+            <button id="btnPing" class="btn">Ping</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+;(()=>{
+  // ---------------------------
+  // 基础状态 & 工具
+  // ---------------------------
+  const state = {
+    connected:false,
+    jointDeg:[0,0,0,0,0,0], // UI 期望姿态（度）
+    fbDeg:[0,0,0,0,0,0],    // 反馈姿态（度）
+    speed:50,
+    servo:true,
+    gripper:0, // 0..100
+    mode:'absolute', // absolute | jog
+    jogInterval:null,
+    jogTarget:null, // {i, sign}
+    waypoints: loadLS('waypoints', []), // [{name, joints:[6], gripper:number}]
+    sequence: [], // [{name, joints:[6], gripper, dwell}]
+    ws:null,
+  }
+  const el = id => document.getElementById(id)
+  const log = (...args)=>{
+    const line = args.map(v=> typeof v==='string'? v : JSON.stringify(v)).join(' ')
+    const con = el('console')
+    con.textContent += `\n${new Date().toLocaleTimeString()}  ${line}`
+    con.scrollTop = con.scrollHeight
+    console.log(...args)
+  }
+  const toRad = d => d*Math.PI/180
+  const clamp = (v,min,max)=> Math.max(min, Math.min(max,v))
+  const saveLS = (k,v)=> localStorage.setItem(k, JSON.stringify(v))
+  function loadLS(k, def){ try{ return JSON.parse(localStorage.getItem(k)) ?? def }catch{ return def } }
+
+  // ---------------------------
+  // WebSocket 封装（简单可靠，手动连接/断开）
+  // ---------------------------
+  function setConnUI(ok,label){
+    state.connected = !!ok
+    el('connDot').classList.toggle('ok', ok)
+    el('connDot').classList.toggle('bad', !ok)
+    el('connLabel').textContent = label
+    el('btnConnect').textContent = ok? '断开' : '连接'
+  }
+
+  function connect(){
+    const url = el('wsUrl').value.trim() || `ws://${location.hostname}:8765`
+    try{
+      state.ws = new WebSocket(url)
+    }catch(err){ log('WebSocket 构造失败:', err.message); return }
+
+    setConnUI(false, '连接中...')
+
+    state.ws.addEventListener('open', ()=>{
+      setConnUI(true,'已连接')
+      send({cmd:'hello', agent:'webui', version:'1.0.0'})
+    })
+    state.ws.addEventListener('message', (ev)=>{
+      try{
+        const msg = JSON.parse(ev.data)
+        handleInbound(msg)
+      }catch{
+        log('收到文本：', ev.data)
+      }
+    })
+    state.ws.addEventListener('close', ()=>{
+      setConnUI(false,'未连接')
+      state.ws=null
+    })
+    state.ws.addEventListener('error', (e)=>{
+      log('WS 错误：', e.message || e)
+    })
+  }
+  function disconnect(){ try{ state.ws?.close() }catch{} }
+  function send(obj){
+    const payload = JSON.stringify(obj)
+    if(state.ws && state.ws.readyState===1){ state.ws.send(payload) }
+    log('→', payload)
+  }
+
+  // ---------------------------
+  // 入站消息处理（示例协议）
+  // 后端可按此 JSON 结构推送：
+  // {topic:'state', joints_deg:[..6], gripper:0..100, motion:'idle|moving', errors:[]}
+  // ---------------------------
+  function handleInbound(msg){
+    log('←', msg)
+    if(msg.topic==='state'){
+      if(Array.isArray(msg.joints_deg) && msg.joints_deg.length>=6){
+        state.fbDeg = msg.joints_deg.slice(0,6)
+        updatePoseText()
+      }
+      if(typeof msg.gripper==='number'){
+        state.gripper = clamp(msg.gripper,0,100)
+        el('gripper').value = state.gripper
+        el('gripLabel').textContent = `${Math.round(state.gripper)}%`
+      }
+      if(msg.motion) el('motionState').textContent = msg.motion
+    }
+  }
+
+  // ---------------------------
+  // UI：生成 6 个关节卡片
+  // ---------------------------
+  const jointsWrap = el('joints')
+  const jointEls = []
+  const JOINT_LIMITS = [
+    {min:-180, max:180},
+    {min:-180, max:180},
+    {min:-180, max:180},
+    {min:-180, max:180},
+    {min:-180, max:180},
+    {min:-360, max:360},
+  ]
+  function makeJoint(i){
+    const j = i+1
+    const card = document.createElement('div'); card.className='joint'
+    card.innerHTML = `
+      <div class="joint-top">
+        <div class="joint-name">J${j}</div>
+        <div class="joint-values"><span id="j${j}deg">0.0°</span> · <span id="j${j}rad">0.000 rad</span></div>
+      </div>
+      <div class="range-wrap">
+        <button class="btn small ghost" data-jog="-1">–</button>
+        <input type="range" min="${JOINT_LIMITS[i].min}" max="${JOINT_LIMITS[i].max}" step="0.1" value="0" />
+        <button class="btn small ghost" data-jog="1">+</button>
+      </div>`
+    const range = card.querySelector('input[type=range]')
+    const minus = card.querySelector('[data-jog="-1"]')
+    const plus  = card.querySelector('[data-jog="1"]')
+
+    // 滑块变更：仅更新 UI 状态，发送由“应用当前姿态”触发
+    range.addEventListener('input', ()=>{
+      const val = parseFloat(range.value)
+      state.jointDeg[i] = val
+      updateJointLabels(i, val)
+      updatePoseText()
+    })
+
+    // 点动：按下开始循环发送，松开结束
+    const startJog = (sign)=>{
+      const baseStep = 1 // deg
+      const mult = (key)=> key.shiftKey? 5 : (key.altKey? 0.1 : 1)
+      if(state.jogInterval) clearInterval(state.jogInterval)
+      state.jogInterval = setInterval(()=>{
+        const step = baseStep * jogKeyMult
+        if(state.mode==='jog'){
+          send({cmd:'jog', joint:i, delta_deg: sign*step, speed: state.speed})
+        }else{
+          const lim = JOINT_LIMITS[i]
+          state.jointDeg[i] = clamp(state.jointDeg[i] + sign*step, lim.min, lim.max)
+          range.value = state.jointDeg[i]
+          updateJointLabels(i, state.jointDeg[i])
+          sendPose(false)
+        }
+      }, 120)
+    }
+    const endJog = ()=>{ if(state.jogInterval){ clearInterval(state.jogInterval); state.jogInterval=null } }
+    minus.addEventListener('mousedown', e=>{ startJog(-1) })
+    plus .addEventListener('mousedown', e=>{ startJog(1) })
+    ;['mouseup','mouseleave'].forEach(evt=>{
+      minus.addEventListener(evt, endJog); plus.addEventListener(evt, endJog)
+    })
+
+    jointEls.push({card, range})
+    return card
+  }
+  for(let i=0;i<6;i++) jointsWrap.appendChild(makeJoint(i))
+
+  function updateJointLabels(i,deg){
+    el(`j${i+1}deg`).textContent = `${deg.toFixed(1)}°`
+    el(`j${i+1}rad`).textContent = `${toRad(deg).toFixed(3)} rad`
+  }
+  function updatePoseText(){
+    const arr = state.jointDeg.map(v=>v.toFixed(1))
+    el('poseText').textContent = `[${arr.join(', ')}]`
+  }
+  updatePoseText()
+
+  // ---------------------------
+  // 速度 & 模式 & 伺服 / 急停
+  // ---------------------------
+  el('speedScale').addEventListener('input', e=>{
+    state.speed = parseInt(e.target.value,10)
+    el('speedLabel').textContent = `${state.speed}%`
+  })
+  el('protoSelect').addEventListener('change', e=>{
+    state.mode = e.target.value
+  })
+  el('btnServo').addEventListener('click', ()=>{
+    state.servo = !state.servo
+    el('btnServo').textContent = state.servo? '伺服 ON' : '伺服 OFF'
+    el('btnServo').classList.toggle('ok', state.servo)
+    el('btnServo').classList.toggle('ghost', !state.servo)
+    send({cmd:'servo', enable: state.servo})
+  })
+  el('btnEStop').addEventListener('click', ()=> send({cmd:'stop'}))
+
+  // ---------------------------
+  // 姿态下发（一次性发送 6 轴）
+  // ---------------------------
+  function sendPose(force=true){
+    send({cmd:'set_joints', units:'deg', joints: state.jointDeg, speed: state.speed, force})
+  }
+  el('btnApplyPose').addEventListener('click', ()=> sendPose(true))
+  el('btnHome').addEventListener('click', ()=> send({cmd:'home'}))
+  el('btnZero').addEventListener('click', ()=> send({cmd:'zero'}))
+
+  // ---------------------------
+  // 夹爪控制
+  // ---------------------------
+  const gripRange = el('gripper')
+  gripRange.addEventListener('input', ()=>{
+    state.gripper = parseInt(gripRange.value,10)
+    el('gripLabel').textContent = `${state.gripper}%`
+  })
+  gripRange.addEventListener('change', ()=>{
+    send({cmd:'gripper', action:'set', value: state.gripper})
+  })
+  el('btnGripOpen').addEventListener('click', ()=>{
+    state.gripper = 0; gripRange.value=0; el('gripLabel').textContent='0%'
+    send({cmd:'gripper', action:'open'})
+  })
+  el('btnGripClose').addEventListener('click', ()=>{
+    state.gripper = 100; gripRange.value=100; el('gripLabel').textContent='100%'
+    send({cmd:'gripper', action:'close'})
+  })
+
+  // ---------------------------
+  // 示教点 & 序列
+  // ---------------------------
+  const wpList = el('wpList')
+  const wpSelect = el('wpSelect')
+  const seqList = el('seqList')
+
+  function renderWaypoints(){
+    wpList.innerHTML=''
+    wpSelect.innerHTML=''
+    state.waypoints.forEach((wp, idx)=>{
+      const row = document.createElement('div'); row.className='item'
+      row.innerHTML = `
+        <div>
+          <div><strong>${wp.name}</strong></div>
+          <div class="muted">[${wp.joints.map(v=>v.toFixed(1)).join(', ')}] · Grip ${wp.gripper}%</div>
+        </div>
+        <div class="controls">
+          <button class="btn small" data-act="goto">到位</button>
+          <button class="btn small ghost" data-act="rename">重命名</button>
+          <button class="btn small danger" data-act="del">删除</button>
+        </div>`
+      row.querySelector('[data-act="goto"]').addEventListener('click', ()=>{
+        state.jointDeg = wp.joints.slice(0,6)
+        jointEls.forEach((je,i)=>{ je.range.value = state.jointDeg[i]; updateJointLabels(i,state.jointDeg[i]) })
+        el('gripper').value = wp.gripper; el('gripLabel').textContent=`${wp.gripper}%`
+        updatePoseText();
+        send({cmd:'set_joints', units:'deg', joints: state.jointDeg, speed: state.speed})
+        send({cmd:'gripper', action:'set', value: wp.gripper})
+      })
+      row.querySelector('[data-act="rename"]').addEventListener('click', ()=>{
+        const nn = prompt('新的名称', wp.name)
+        if(nn){ state.waypoints[idx].name = nn; saveLS('waypoints', state.waypoints); renderWaypoints() }
+      })
+      row.querySelector('[data-act="del"]').addEventListener('click', ()=>{
+        if(confirm(`删除示教点 ${wp.name}?`)){
+          state.waypoints.splice(idx,1); saveLS('waypoints', state.waypoints); renderWaypoints()
+        }
+      })
+      wpList.appendChild(row)
+
+      const opt = document.createElement('option'); opt.value=String(idx); opt.textContent=wp.name
+      wpSelect.appendChild(opt)
+    })
+  }
+  renderWaypoints()
+
+  el('btnSaveWp').addEventListener('click', ()=>{
+    const name = (el('wpName').value || `WP${state.waypoints.length+1}`).trim()
+    const wp = { name, joints: state.jointDeg.slice(0,6), gripper: state.gripper }
+    state.waypoints.push(wp)
+    saveLS('waypoints', state.waypoints)
+    el('wpName').value=''
+    renderWaypoints()
+  })
+
+  // 序列：添加 / 运行 / 停止 / 导出 / 导入
+  function renderSeq(){
+    seqList.innerHTML=''
+    state.sequence.forEach((s, idx)=>{
+      const row = document.createElement('div'); row.className='item'
+      row.innerHTML = `
+        <div>
+          <div><strong>${s.name}</strong> <span class="muted">(停留 ${s.dwell}s)</span></div>
+          <div class="muted">[${s.joints.map(v=>v.toFixed(1)).join(', ')}] · Grip ${s.gripper}%</div>
+        </div>
+        <div class="controls">
+          <button class="btn small ghost" data-act="up">↑</button>
+          <button class="btn small ghost" data-act="down">↓</button>
+          <button class="btn small danger" data-act="del">删</button>
+        </div>`
+      row.querySelector('[data-act="up"]').addEventListener('click', ()=>{
+        if(idx>0){ const t=state.sequence[idx-1]; state.sequence[idx-1]=state.sequence[idx]; state.sequence[idx]=t; renderSeq() }
+      })
+      row.querySelector('[data-act="down"]').addEventListener('click', ()=>{
+        if(idx<state.sequence.length-1){ const t=state.sequence[idx+1]; state.sequence[idx+1]=state.sequence[idx]; state.sequence[idx]=t; renderSeq() }
+      })
+      row.querySelector('[data-act="del"]').addEventListener('click', ()=>{
+        state.sequence.splice(idx,1); renderSeq()
+      })
+      seqList.appendChild(row)
+    })
+  }
+  el('btnAddStep').addEventListener('click', ()=>{
+    const idx = parseInt(wpSelect.value || '-1', 10)
+    if(isNaN(idx) || !state.waypoints[idx]) return alert('请选择示教点')
+    const dwell = parseFloat(el('dwell').value) || 0
+    const wp = state.waypoints[idx]
+    state.sequence.push({ name: wp.name, joints: wp.joints.slice(0,6), gripper: wp.gripper, dwell })
+    renderSeq()
+  })
+
+  let seqAbort = false
+  async function runSequence(){
+    seqAbort = false
+    for(const step of state.sequence){
+      if(seqAbort) break
+      send({cmd:'set_joints', units:'deg', joints: step.joints, speed: state.speed})
+      send({cmd:'gripper', action:'set', value: step.gripper})
+      await delay(Math.max(0, step.dwell)*1000)
+    }
+  }
+  function delay(ms){ return new Promise(r=> setTimeout(r, ms)) }
+
+  el('btnRunSeq').addEventListener('click', runSequence)
+  el('btnStopSeq').addEventListener('click', ()=>{ seqAbort=true; send({cmd:'stop'}) })
+
+  el('btnExport').addEventListener('click', ()=>{
+    const data = { waypoints: state.waypoints, sequence: state.sequence }
+    const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'})
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `arm_program_${Date.now()}.json`; a.click()
+    URL.revokeObjectURL(a.href)
+  })
+  el('btnImport').addEventListener('click', ()=> el('importFile').click())
+  el('importFile').addEventListener('change', async (e)=>{
+    const file = e.target.files?.[0]; if(!file) return
+    const text = await file.text()
+    try{
+      const json = JSON.parse(text)
+      if(Array.isArray(json.waypoints)) state.waypoints = json.waypoints
+      if(Array.isArray(json.sequence))  state.sequence  = json.sequence
+      saveLS('waypoints', state.waypoints)
+      renderWaypoints(); renderSeq()
+    }catch(err){ alert('导入失败：'+err.message) }
+  })
+
+  // ---------------------------
+  // 键盘快捷键
+  // ---------------------------
+  let focusJoint = 0
+  let jogKeyMult = 1
+  document.addEventListener('keydown', (e)=>{
+    if(e.target && ['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return
+    if(e.key>='1' && e.key<='6'){ focusJoint = parseInt(e.key,10)-1; flash(jointEls[focusJoint].card); return }
+    if(e.key===' '){ e.preventDefault(); send({cmd:'stop'}); flash(el('btnEStop')); return }
+    if(e.key==='h' || e.key==='H'){ send({cmd:'home'}); flash(el('btnHome')); return }
+    if(e.key==='s' || e.key==='S'){ el('btnServo').click(); return }
+    if(e.key==='g' || e.key==='G'){
+      const v = state.gripper<50? 100:0; state.gripper=v; gripRange.value=v; el('gripLabel').textContent=`${v}%`; send({cmd:'gripper', action:'set', value:v}); return
+    }
+    if(e.key==='ArrowLeft' || e.key==='ArrowRight'){
+      const sign = (e.key==='ArrowRight')? 1 : -1
+      const base = 1
+      const step = base * (e.shiftKey?5: (e.altKey?0.1:1))
+      const lim = JOINT_LIMITS[focusJoint]
+      state.jointDeg[focusJoint] = clamp(state.jointDeg[focusJoint] + sign*step, lim.min, lim.max)
+      const je = jointEls[focusJoint]; je.range.value = state.jointDeg[focusJoint]; updateJointLabels(focusJoint, state.jointDeg[focusJoint])
+      if(state.mode==='absolute') sendPose(false); else send({cmd:'jog', joint:focusJoint, delta_deg:sign*step, speed:state.speed})
+      updatePoseText();
+      return
+    }
+    jogKeyMult = e.shiftKey?5 : (e.altKey?0.1 : 1)
+  })
+  document.addEventListener('keyup', (e)=>{
+    jogKeyMult = 1
+  })
+  function flash(node){ node.animate([{outline:'2px solid #8fb1ff'},{outline:'0'}],{duration:300, easing:'ease-out'}) }
+
+  // ---------------------------
+  // 顶部：连接区
+  // ---------------------------
+  el('btnConnect').addEventListener('click', ()=>{
+    if(state.connected) disconnect(); else connect()
+  })
+  el('btnPing').addEventListener('click', ()=> send({cmd:'ping', t: Date.now()}))
+  el('btnClearLog').addEventListener('click', ()=> el('console').textContent='')
+
+  state.jointDeg.forEach((v,i)=> updateJointLabels(i,v))
+  setConnUI(false,'未连接')
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,8 @@
+<launch>
+  <node pkg="web_ui" type="simple_http_server.py" name="web_ui_http" output="screen">
+    <param name="port" value="8080"/>
+    <param name="root" value="$(find web_ui)/www"/>
+  </node>
+
+  <node pkg="web_ui" type="ws_bridge.py" name="web_ui_bridge" output="screen"/>
+</launch>
