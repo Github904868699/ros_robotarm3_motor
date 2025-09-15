@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>web_ui</name>
+  <version>0.0.0</version>
+  <description>Web-based UI for controlling the robot arm via WebSocket bridge.</description>
+  <maintainer email="user@example.com">User</maintainer>
+  <license>MIT</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>rospy</build_depend>
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>rosbridge_server</exec_depend>
+</package>
